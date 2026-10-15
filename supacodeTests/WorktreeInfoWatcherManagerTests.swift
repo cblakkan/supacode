@@ -728,6 +728,30 @@ struct WorktreeInfoWatcherManagerTests {
     try FileManager.default.removeItem(at: tempWorktree.tempRoot)
   }
 
+  @Test(arguments: [
+    "/repo/.git/fsmonitor--daemon/cookies/1234-1",
+    "/repo/.git/fsmonitor--daemon/cookies",
+    "/repo/.git/fsmonitor--daemon.ipc",
+    "/repo/.git/worktrees/feature/fsmonitor--daemon/cookies/1234-1",
+    "/repo/.bare/worktrees/feature/fsmonitor--daemon/cookies/1234-1",
+  ])
+  func fileEventFilterIgnoresFSMonitorDaemonPaths(path: String) {
+    #expect(!WorktreeInfoWatcherManager.isRelevantFileEvent(path: path))
+  }
+
+  @Test(arguments: [
+    "/repo/Sources/main.swift",
+    "/repo",
+    "/repo/.git/index",
+    "/repo/.git/HEAD",
+    "/repo/.git/refs/heads/main",
+    "/repo/.git/worktrees/feature/index",
+    "/repo/.git/worktrees/feature/logs/HEAD",
+  ])
+  func fileEventFilterKeepsWorkingTreeAndGitStatePaths(path: String) {
+    #expect(WorktreeInfoWatcherManager.isRelevantFileEvent(path: path))
+  }
+
   @Test func reconcileCatchesUpALocalWorktreeWhoseWatcherIsDead() async throws {
     let clock = TestClock()
     // A worktree with no resolvable HEAD never arms a head watcher, so the

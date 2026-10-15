@@ -29,8 +29,13 @@ private final class WorktreeFileEventMonitor {
       copyDescription: nil
     )
     context.info = Unmanaged.passUnretained(self).toOpaque()
-    let callback: FSEventStreamCallback = { _, callbackInfo, _, _, _, _ in
+    let callback: FSEventStreamCallback = { _, callbackInfo, _, eventPaths, _, _ in
       guard let callbackInfo else { return }
+      if let paths = unsafeBitCast(eventPaths, to: NSArray.self) as? [String],
+        !paths.contains(where: WorktreeInfoWatcherManager.isRelevantFileEvent(path:))
+      {
+        return
+      }
       let monitor = Unmanaged<WorktreeFileEventMonitor>
         .fromOpaque(callbackInfo)
         .takeUnretainedValue()
@@ -49,6 +54,7 @@ private final class WorktreeFileEventMonitor {
         kFSEventStreamCreateFlagFileEvents
           | kFSEventStreamCreateFlagNoDefer
           | kFSEventStreamCreateFlagWatchRoot
+          | kFSEventStreamCreateFlagUseCFTypes
       )
     )
     guard let stream else {
@@ -386,6 +392,13 @@ final class WorktreeInfoWatcherManager {
       roots.append(adminDir)
     }
     return roots
+  }
+
+  // git's builtin fsmonitor creates and deletes a cookie under
+  // `<git dir>/fsmonitor--daemon/` on every query, our own `git diff`
+  // included, so reacting to it re-runs the diff forever.
+  nonisolated static func isRelevantFileEvent(path: String) -> Bool {
+    !path.split(separator: "/").contains { $0.hasPrefix("fsmonitor--daemon") }
   }
 
   private func configureFileEventMonitor(for worktree: Worktree) {
